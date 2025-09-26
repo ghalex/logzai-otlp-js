@@ -1,0 +1,65 @@
+{
+  "name": "logzai-otl",
+  "version": "1.0.5",
+  "description": "LogzAI OTL - A TypeScript library for OpenTelemetry logging",
+  "type": "module",
+  "main": "./dist/logzai-otl.cjs.js",
+  "module": "./dist/logzai-otl.es.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/logzai-otl.es.js",
+      "require": "./dist/logzai-otl.cjs.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./browser": {
+      "import": "./dist/logzai-otl-browser.es.js",
+      "require": "./dist/logzai-otl-browser.cjs.js",
+      "types": "./dist/browser.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build && vite build --config vite.config.browser.ts && tsc --emitDeclarationOnly --outDir dist",
+    "preview": "vite preview",
+    "prepublishOnly": "pnpm run build"
+  },
+  "keywords": [
+    "typescript",
+    "library",
+    "opentelemetry",
+    "logging",
+    "observability"
+  ],
+  "author": "Ghiura Alexandru",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ghalex/logzai-otl.git"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "typescript": "~5.9.2",
+    "vite": "npm:rolldown-vite@7.1.13"
+  },
+  "overrides": {
+    "vite": "npm:rolldown-vite@7.1.13"
+  },
+  "dependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api-logs": "^0.205.0",
+    "@opentelemetry/context-async-hooks": "^2.1.0",
+    "@opentelemetry/context-zone": "^2.1.0",
+    "@opentelemetry/exporter-logs-otlp-http": "^0.205.0",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.205.0",
+    "@opentelemetry/otlp-exporter-base": "^0.205.0",
+    "@opentelemetry/resources": "^2.1.0",
+    "@opentelemetry/sdk-logs": "^0.205.0",
+    "@opentelemetry/sdk-trace-base": "^2.1.0",
+    "@opentelemetry/sdk-trace-node": "^2.1.0",
+    "@opentelemetry/sdk-trace-web": "^2.1.0"
+  }
+}
