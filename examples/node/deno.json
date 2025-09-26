@@ -1,0 +1,20 @@
+{
+  "tasks": {
+    "start": "deno run main.ts",
+    "dev": "deno run --watch main.ts"
+  },
+  "imports": {
+    "@std/assert": "jsr:@std/assert@^1.0.14",
+    "logzai-otl": "npm:logzai-otl@^1.0.5",
+    "@opentelemetry/api": "npm:@opentelemetry/api@^1.9.0",
+    "@opentelemetry/api-logs": "npm:@opentelemetry/api-logs@^0.205.0",
+    "@opentelemetry/context-async-hooks": "npm:@opentelemetry/context-async-hooks@^2.1.0",
+    "@opentelemetry/exporter-logs-otlp-http": "npm:@opentelemetry/exporter-logs-otlp-http@^0.205.0",
+    "@opentelemetry/exporter-trace-otlp-http": "npm:@opentelemetry/exporter-trace-otlp-http@^0.205.0",
+    "@opentelemetry/otlp-exporter-base": "npm:@opentelemetry/otlp-exporter-base@^0.205.0",
+    "@opentelemetry/resources": "npm:@opentelemetry/resources@^2.1.0",
+    "@opentelemetry/sdk-logs": "npm:@opentelemetry/sdk-logs@^0.205.0",
+    "@opentelemetry/sdk-trace-base": "npm:@opentelemetry/sdk-trace-base@^2.1.0",
+    "@opentelemetry/sdk-trace-node": "npm:@opentelemetry/sdk-trace-node@^2.1.0"
+  }
+}
