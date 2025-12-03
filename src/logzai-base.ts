@@ -117,6 +117,17 @@ export abstract class LogzAIBase {
   public warn = (msg: string, attrs?: Record<string, any>) => this.emit(SeverityNumber.WARN, msg, attrs);
   public error = (msg: string, attrs?: Record<string, any>) => this.emit(SeverityNumber.ERROR, msg, attrs);
 
+  public exception = (msg: string, error: Error, attrs?: Record<string, any>) => {
+    const exceptionAttrs = {
+      ...attrs,
+      is_exception: true,
+      'exception.type': error.name,
+      'exception.message': error.message,
+      'exception.stacktrace': error.stack || '',
+    };
+    this.emit(SeverityNumber.ERROR, msg, exceptionAttrs);
+  };
+
   async shutdown() {
     await Promise.all([
       this.loggerProvider.shutdown(),

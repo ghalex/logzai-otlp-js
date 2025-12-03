@@ -1,6 +1,6 @@
 {
   "name": "logzai-js",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "LogzAI JS - A TypeScript library for OpenTelemetry logging",
   "type": "module",
   "main": "./dist/logzai-js.cjs.js",
