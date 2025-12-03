@@ -5,8 +5,8 @@ export default defineConfig({
   build: {
     lib: {
       entry: resolve(__dirname, 'src/index.ts'),
-      name: 'logzai-otl',
-      fileName: (format) => `logzai-otl.${format}.js`,
+      name: 'logzai-js',
+      fileName: (format) => `logzai-js.${format}.js`,
       formats: ['es', 'cjs']
     },
     rollupOptions: {

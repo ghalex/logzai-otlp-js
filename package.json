@@ -1,20 +1,20 @@
 {
-  "name": "logzai-otl",
+  "name": "logzai-js",
   "version": "1.0.5",
-  "description": "LogzAI OTL - A TypeScript library for OpenTelemetry logging",
+  "description": "LogzAI JS - A TypeScript library for OpenTelemetry logging",
   "type": "module",
-  "main": "./dist/logzai-otl.cjs.js",
-  "module": "./dist/logzai-otl.es.js",
+  "main": "./dist/logzai-js.cjs.js",
+  "module": "./dist/logzai-js.es.js",
   "types": "./dist/index.d.ts",
   "exports": {
     ".": {
-      "import": "./dist/logzai-otl.es.js",
-      "require": "./dist/logzai-otl.cjs.js",
+      "import": "./dist/logzai-js.es.js",
+      "require": "./dist/logzai-js.cjs.js",
       "types": "./dist/index.d.ts"
     },
     "./browser": {
-      "import": "./dist/logzai-otl-browser.es.js",
-      "require": "./dist/logzai-otl-browser.cjs.js",
+      "import": "./dist/logzai-js-browser.es.js",
+      "require": "./dist/logzai-js-browser.cjs.js",
       "types": "./dist/browser.d.ts"
     }
   },
@@ -38,7 +38,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ghalex/logzai-otl.git"
+    "url": "https://github.com/ghalex/logzai-js.git"
   },
   "devDependencies": {
     "@types/node": "^24.5.2",

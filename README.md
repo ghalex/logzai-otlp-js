@@ -1,11 +1,11 @@
-# LogzAI OTL
+# LogzAI JS
 
 Official JavaScript/TypeScript client for LogzAI — send logs to the LogzAI platform using the OpenTelemetry Protocol (OTLP).
 
 ## Installation
 
 ```bash
-npm install logzai-otl
+npm install logzai-js
 ```
 
 ## Usage
@@ -13,7 +13,7 @@ npm install logzai-otl
 ### Node.js Example
 
 ```typescript
-import logzai from 'logzai-otl';
+import logzai from 'logzai-js';
 
 // Initialize LogzAI
 logzai.init({
@@ -35,7 +35,7 @@ await logzai.shutdown();
 
 ```html
 <script type="module">
-  import logzai from 'logzai-otl/browser';
+  import logzai from 'logzai-js/browser';
 
   // Initialize LogzAI
   logzai.init({
@@ -66,9 +66,9 @@ npm run dev
 ## Building
 
 The library is built using Vite and outputs multiple formats:
-- ES modules (`dist/logzai-otl.es.js`)
-- CommonJS (`dist/logzai-otl.cjs.js`)
-- UMD (`dist/logzai-otl.umd.js`)
+- ES modules (`dist/logzai-js.es.js`)
+- CommonJS (`dist/logzai-js.cjs.js`)
+- UMD (`dist/logzai-js.umd.js`)
 - TypeScript declarations (`dist/index.d.ts`)
 
 ## Publishing

@@ -9,7 +9,7 @@
  * - Error handling with tracing
  */
 
-import logzai from 'logzai-otl';
+import logzai from 'logzai-js';
 
 async function main() {
   

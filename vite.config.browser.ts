@@ -6,8 +6,8 @@ export default defineConfig({
     emptyOutDir: false, // Don't clean the dist directory
     lib: {
       entry: resolve(__dirname, 'src/browser.ts'),
-      name: 'logzai-otl-browser',
-      fileName: (format) => `logzai-otl-browser.${format}.js`,
+      name: 'logzai-js-browser',
+      fileName: (format) => `logzai-js-browser.${format}.js`,
       formats: ['es', 'cjs']
     },
     rollupOptions: {
