@@ -21,6 +21,7 @@ class LogzAIBrowser extends LogzAIBase {
       serviceNamespace = "default",
       environment = (typeof process !== 'undefined' && process.env?.NODE_ENV) || "production",
       mirrorToConsole = false,
+      timeoutMillis = 10000,
     } = opts;
 
     // Set mirror to console property (now properly protected)
@@ -33,10 +34,18 @@ class LogzAIBrowser extends LogzAIBase {
     });
 
     // Traces - use WebTracerProvider for browser
-    const spanProcessor = new BatchSpanProcessor(this.makeTraceExporter(ingestEndpoint, { "x-ingest-token": ingestToken }));
-    this.tracerProvider = new WebTracerProvider({ 
-      resource, 
-      spanProcessors: [spanProcessor] 
+    const spanProcessor = new BatchSpanProcessor(
+      this.makeTraceExporter(ingestEndpoint, { "x-ingest-token": ingestToken }, timeoutMillis),
+      {
+        maxExportBatchSize: 512,
+        maxQueueSize: 2048,
+        scheduledDelayMillis: 1000,
+        exportTimeoutMillis: timeoutMillis,
+      }
+    );
+    this.tracerProvider = new WebTracerProvider({
+      resource,
+      spanProcessors: [spanProcessor]
     });
     this.tracerProvider.register({
       contextManager: new ZoneContextManager(), // Use ZoneContextManager for browser
@@ -44,10 +53,18 @@ class LogzAIBrowser extends LogzAIBase {
     this.tracer = trace.getTracer("logzai");
 
     // Logs - use the same LoggerProvider as Node.js version
-    const logProcessor = new BatchLogRecordProcessor(this.makeLogExporter(ingestEndpoint, { "x-ingest-token": ingestToken }));
-    this.loggerProvider = new LoggerProvider({ 
-      resource, 
-      processors: [logProcessor] 
+    const logProcessor = new BatchLogRecordProcessor(
+      this.makeLogExporter(ingestEndpoint, { "x-ingest-token": ingestToken }, timeoutMillis),
+      {
+        maxExportBatchSize: 512,
+        maxQueueSize: 2048,
+        scheduledDelayMillis: 1000,
+        exportTimeoutMillis: timeoutMillis,
+      }
+    );
+    this.loggerProvider = new LoggerProvider({
+      resource,
+      processors: [logProcessor]
     });
     this.logger = this.loggerProvider.getLogger("logzai");
 

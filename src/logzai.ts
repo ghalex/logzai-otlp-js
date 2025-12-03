@@ -17,6 +17,7 @@ class LogzAI extends LogzAIBase {
       serviceNamespace = "default",
       environment = "prod",
       mirrorToConsole = false,
+      timeoutMillis = 10000,
     } = opts;
 
     this.mirrorToConsole = mirrorToConsole;
@@ -28,10 +29,18 @@ class LogzAI extends LogzAIBase {
     });
 
     // Traces
-    const spanProcessor = new BatchSpanProcessor(this.makeTraceExporter(ingestEndpoint, { "x-ingest-token": ingestToken }));
-    this.tracerProvider = new NodeTracerProvider({ 
-      resource, 
-      spanProcessors: [spanProcessor] 
+    const spanProcessor = new BatchSpanProcessor(
+      this.makeTraceExporter(ingestEndpoint, { "x-ingest-token": ingestToken }, timeoutMillis),
+      {
+        maxExportBatchSize: 512,
+        maxQueueSize: 2048,
+        scheduledDelayMillis: 1000,
+        exportTimeoutMillis: timeoutMillis,
+      }
+    );
+    this.tracerProvider = new NodeTracerProvider({
+      resource,
+      spanProcessors: [spanProcessor]
     });
     this.tracerProvider.register({
       contextManager: new AsyncLocalStorageContextManager(),
@@ -39,10 +48,18 @@ class LogzAI extends LogzAIBase {
     this.tracer = trace.getTracer("logzai");
 
     // Logs
-    const logProcessor = new BatchLogRecordProcessor(this.makeLogExporter(ingestEndpoint, { "x-ingest-token": ingestToken }));
-    this.loggerProvider = new LoggerProvider({ 
-      resource, 
-      processors: [logProcessor] 
+    const logProcessor = new BatchLogRecordProcessor(
+      this.makeLogExporter(ingestEndpoint, { "x-ingest-token": ingestToken }, timeoutMillis),
+      {
+        maxExportBatchSize: 512,
+        maxQueueSize: 2048,
+        scheduledDelayMillis: 1000,
+        exportTimeoutMillis: timeoutMillis,
+      }
+    );
+    this.loggerProvider = new LoggerProvider({
+      resource,
+      processors: [logProcessor]
     });
     this.logger = this.loggerProvider.getLogger("logzai");
   }

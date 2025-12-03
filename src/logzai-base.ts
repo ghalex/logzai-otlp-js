@@ -11,6 +11,7 @@ export interface LogzAIOptions {
   serviceNamespace?: string;
   environment?: string;
   mirrorToConsole?: boolean;
+  timeoutMillis?: number;
 }
 
 export abstract class LogzAIBase {
@@ -26,15 +27,23 @@ export abstract class LogzAIBase {
   }
 
   // Create HTTP transport for logs & traces
-  protected makeTraceExporter(ingestEndpoint: string, headers: Record<string, string>): OTLPTraceExporter {
+  protected makeTraceExporter(ingestEndpoint: string, headers: Record<string, string>, timeoutMillis?: number): OTLPTraceExporter {
     const url = ingestEndpoint.replace(/\/+$/, "") + "/traces";
-    return new OTLPTraceExporter({ url, headers });
+    return new OTLPTraceExporter({
+      url,
+      headers,
+      timeoutMillis: timeoutMillis ?? 10000
+    });
   }
 
-  protected makeLogExporter(ingestEndpoint: string, headers: Record<string, string>): OTLPLogExporter {
+  protected makeLogExporter(ingestEndpoint: string, headers: Record<string, string>, timeoutMillis?: number): OTLPLogExporter {
     const url = ingestEndpoint.replace(/\/+$/, "") + "/logs";
     console.log("LogzAI log exporter URL: ", url);
-    return new OTLPLogExporter({ url, headers });
+    return new OTLPLogExporter({
+      url,
+      headers,
+      timeoutMillis: timeoutMillis ?? 10000
+    });
   }
 
   // Abstract method to be implemented by Node.js and browser versions

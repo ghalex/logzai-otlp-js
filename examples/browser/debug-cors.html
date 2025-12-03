@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LogzAI CORS Debug</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            margin: 20px;
+            background-color: #1e1e1e;
+            color: #d4d4d4;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #4ec9b0;
+        }
+        button {
+            margin: 10px 5px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007acc;
+            color: white;
+        }
+        button:hover {
+            background-color: #005a9e;
+        }
+        .log-container {
+            margin-top: 20px;
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .log-entry {
+            padding: 5px;
+            margin: 2px 0;
+            border-left: 3px solid transparent;
+        }
+        .log-entry.info {
+            border-left-color: #4ec9b0;
+        }
+        .log-entry.error {
+            border-left-color: #f48771;
+            color: #f48771;
+        }
+        .log-entry.success {
+            border-left-color: #89d185;
+            color: #89d185;
+        }
+        .log-entry.warn {
+            border-left-color: #dcdcaa;
+            color: #dcdcaa;
+        }
+        .timestamp {
+            color: #858585;
+            font-size: 12px;
+        }
+        .config {
+            background: #252526;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+            padding: 15px;
+            margin: 20px 0;
+        }
+        .config input {
+            width: 100%;
+            padding: 8px;
+            margin: 5px 0;
+            background: #3c3c3c;
+            border: 1px solid #555;
+            color: #d4d4d4;
+            border-radius: 3px;
+        }
+        .config label {
+            color: #4ec9b0;
+            display: block;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>LogzAI CORS Debug Tool</h1>
+
+        <div class="config">
+            <h3>Configuration</h3>
+            <label>Ingest Endpoint:</label>
+            <input type="text" id="endpoint" value="http://localhost:10000/ingest/otel/test" />
+
+            <label>Ingest Token:</label>
+            <input type="text" id="token" value="test-token" />
+
+            <label>Timeout (ms):</label>
+            <input type="number" id="timeout" value="5000" />
+        </div>
+
+        <div>
+            <button onclick="testCors()">Test CORS Preflight</button>
+            <button onclick="testDirectPost()">Test Direct POST</button>
+            <button onclick="initLogzAI()">Initialize LogzAI</button>
+            <button onclick="sendTestLog()">Send Test Log</button>
+            <button onclick="forceFlush()">Force Flush</button>
+            <button onclick="clearLogs()">Clear Logs</button>
+        </div>
+
+        <div class="log-container" id="logs"></div>
+    </div>
+
+    <script type="module">
+        let logzai = null;
+        let logInitialized = false;
+
+        function addLog(message, type = 'info') {
+            const logsContainer = document.getElementById('logs');
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry ${type}`;
+
+            const timestamp = new Date().toISOString();
+            logEntry.innerHTML = `<span class="timestamp">[${timestamp}]</span> ${message}`;
+
+            logsContainer.appendChild(logEntry);
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+
+        window.addLog = addLog;
+
+        // Test CORS preflight (OPTIONS request)
+        window.testCors = async function() {
+            const endpoint = document.getElementById('endpoint').value;
+            const url = `${endpoint}/logs`;
+
+            addLog('Testing CORS preflight to: ' + url, 'info');
+
+            try {
+                const response = await fetch(url, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'POST',
+                        'Access-Control-Request-Headers': 'content-type,x-ingest-token'
+                    }
+                });
+
+                addLog(`OPTIONS Response Status: ${response.status}`, 'success');
+                addLog(`CORS Headers:`, 'info');
+
+                const corsHeaders = [
+                    'access-control-allow-origin',
+                    'access-control-allow-methods',
+                    'access-control-allow-headers',
+                    'access-control-max-age'
+                ];
+
+                corsHeaders.forEach(header => {
+                    const value = response.headers.get(header);
+                    if (value) {
+                        addLog(`  ${header}: ${value}`, 'info');
+                    } else {
+                        addLog(`  ${header}: MISSING!`, 'error');
+                    }
+                });
+            } catch (error) {
+                addLog(`CORS test failed: ${error.message}`, 'error');
+            }
+        };
+
+        // Test direct POST request
+        window.testDirectPost = async function() {
+            const endpoint = document.getElementById('endpoint').value;
+            const token = document.getElementById('token').value;
+            const timeout = parseInt(document.getElementById('timeout').value);
+            const url = `${endpoint}/logs`;
+
+            addLog('Testing POST request to: ' + url, 'info');
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+            try {
+                const testPayload = {
+                    resourceLogs: [{
+                        resource: {
+                            attributes: [{
+                                key: 'service.name',
+                                value: { stringValue: 'debug-test' }
+                            }]
+                        },
+                        scopeLogs: [{
+                            scope: { name: 'test' },
+                            logRecords: [{
+                                timeUnixNano: String(Date.now() * 1000000),
+                                severityNumber: 9,
+                                severityText: 'INFO',
+                                body: { stringValue: 'Test log from debug tool' },
+                                attributes: []
+                            }]
+                        }]
+                    }]
+                };
+
+                addLog('Sending OTLP payload...', 'info');
+
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Ingest-Token': token
+                    },
+                    body: JSON.stringify(testPayload),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                addLog(`POST Response Status: ${response.status}`, response.ok ? 'success' : 'error');
+
+                const responseText = await response.text();
+                if (responseText) {
+                    addLog(`Response Body: ${responseText}`, 'info');
+                }
+            } catch (error) {
+                clearTimeout(timeoutId);
+                if (error.name === 'AbortError') {
+                    addLog(`Request timed out after ${timeout}ms`, 'error');
+                } else {
+                    addLog(`POST request failed: ${error.message}`, 'error');
+                }
+            }
+        };
+
+        // Initialize LogzAI
+        window.initLogzAI = async function() {
+            if (logInitialized) {
+                addLog('LogzAI already initialized', 'warn');
+                return;
+            }
+
+            try {
+                addLog('Loading LogzAI module...', 'info');
+                const module = await import('../../dist/logzai-js-browser.es.js');
+                logzai = module.default;
+
+                const endpoint = document.getElementById('endpoint').value;
+                const token = document.getElementById('token').value;
+                const timeout = parseInt(document.getElementById('timeout').value);
+
+                addLog('Initializing LogzAI...', 'info');
+                logzai.init({
+                    ingestToken: token,
+                    ingestEndpoint: endpoint,
+                    serviceName: 'debug-tool',
+                    serviceNamespace: 'test',
+                    environment: 'debug',
+                    mirrorToConsole: true,
+                    timeoutMillis: timeout
+                });
+
+                logInitialized = true;
+                addLog('LogzAI initialized successfully!', 'success');
+                addLog(`Batch export scheduled every 1s with ${timeout}ms timeout`, 'info');
+            } catch (error) {
+                addLog(`Failed to initialize LogzAI: ${error.message}`, 'error');
+                console.error(error);
+            }
+        };
+
+        // Send test log
+        window.sendTestLog = function() {
+            if (!logInitialized) {
+                addLog('LogzAI not initialized. Click "Initialize LogzAI" first.', 'error');
+                return;
+            }
+
+            const testMessage = `Test log message at ${new Date().toISOString()}`;
+            addLog(`Sending log via LogzAI: "${testMessage}"`, 'info');
+
+            logzai.info(testMessage, {
+                test: true,
+                timestamp: Date.now(),
+                userAgent: navigator.userAgent
+            });
+
+            addLog('Log sent to batch processor (will export in ~1s)', 'success');
+        };
+
+        // Force flush
+        window.forceFlush = async function() {
+            if (!logzai) {
+                addLog('LogzAI not initialized', 'error');
+                return;
+            }
+
+            addLog('Force flushing logs...', 'info');
+            try {
+                await logzai.shutdown();
+                addLog('Shutdown complete - all logs flushed', 'success');
+                logInitialized = false;
+            } catch (error) {
+                addLog(`Flush failed: ${error.message}`, 'error');
+            }
+        };
+
+        // Clear logs
+        window.clearLogs = function() {
+            document.getElementById('logs').innerHTML = '';
+        };
+
+        // Initial log
+        addLog('Debug tool ready. Configure settings and click "Test CORS Preflight" to start.', 'success');
+    </script>
+</body>
+</html>
