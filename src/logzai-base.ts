@@ -3,6 +3,7 @@ import { LoggerProvider } from "@opentelemetry/sdk-logs";
 import { OTLPTraceExporter } from "@opentelemetry/exporter-trace-otlp-http";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
 import { SeverityNumber, type LogRecord } from "@opentelemetry/api-logs";
+import type { LogzAIPlugin, PluginEntry } from "./plugins/types";
 
 export interface LogzAIOptions {
   ingestToken: string;
@@ -20,6 +21,7 @@ export abstract class LogzAIBase {
   protected tracer: ReturnType<typeof trace.getTracer>;
   protected logger!: ReturnType<LoggerProvider["getLogger"]>;
   protected mirrorToConsole: boolean;
+  protected pluginRegistry: Map<string, PluginEntry> = new Map();
 
   constructor() {
     this.tracer = trace.getTracer("logzai");
@@ -128,7 +130,81 @@ export abstract class LogzAIBase {
     this.emit(SeverityNumber.ERROR, msg, exceptionAttrs);
   };
 
+  /**
+   * Register and activate a plugin
+   * @param name - Unique plugin identifier
+   * @param plugin - Plugin function
+   * @param params - Plugin configuration parameters
+   */
+  public plugin<T = any>(name: string, plugin: LogzAIPlugin<T>, params?: T): void {
+    // Prevent duplicate registration
+    if (this.pluginRegistry.has(name)) {
+      console.warn(`Plugin "${name}" is already registered. Skipping.`);
+      return;
+    }
+
+    try {
+      // Execute plugin and store cleanup function
+      const cleanup = plugin(this, params);
+
+      // Store plugin entry
+      this.pluginRegistry.set(name, {
+        name,
+        plugin,
+        cleanup: cleanup || undefined,
+      });
+
+      console.log(`Plugin "${name}" registered successfully`);
+    } catch (error) {
+      console.error(`Failed to register plugin "${name}":`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Unregister a plugin and call its cleanup function
+   * @param name - Plugin identifier
+   */
+  public unregisterPlugin(name: string): void {
+    const entry = this.pluginRegistry.get(name);
+
+    if (!entry) {
+      console.warn(`Plugin "${name}" not found`);
+      return;
+    }
+
+    // Call cleanup function if exists
+    if (entry.cleanup) {
+      try {
+        const result = entry.cleanup();
+        if (result instanceof Promise) {
+          result.catch(err =>
+            console.error(`Error in cleanup for plugin "${name}":`, err)
+          );
+        }
+      } catch (error) {
+        console.error(`Error in cleanup for plugin "${name}":`, error);
+      }
+    }
+
+    this.pluginRegistry.delete(name);
+    console.log(`Plugin "${name}" unregistered`);
+  }
+
   async shutdown() {
+    // Cleanup all plugins first
+    for (const [name, entry] of this.pluginRegistry.entries()) {
+      if (entry.cleanup) {
+        try {
+          await entry.cleanup();
+        } catch (error) {
+          console.error(`Error cleaning up plugin "${name}":`, error);
+        }
+      }
+    }
+    this.pluginRegistry.clear();
+
+    // Existing shutdown logic
     await Promise.all([
       this.loggerProvider.shutdown(),
       this.tracerProvider.shutdown(),

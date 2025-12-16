@@ -5,4 +5,7 @@
 
 // Export Node.js version by default
 export * from './logzai';
-export { default } from './logzai-browser';
+export { default } from './logzai';
+
+// Export plugin system
+export * from './plugins';

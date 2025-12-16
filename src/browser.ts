@@ -6,3 +6,6 @@
 // Export all browser-specific functionality
 export * from './logzai-browser';
 export { default } from './logzai-browser';
+
+// Export plugin system
+export * from './plugins';
