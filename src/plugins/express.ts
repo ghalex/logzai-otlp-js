@@ -3,11 +3,19 @@
  * Automatically logs HTTP requests, responses, and errors
  */
 
+import { trace, context, type Span } from '@opentelemetry/api';
 import type { LogzAIBase } from '../logzai-base';
 import type { ExpressPluginConfig, LogzAIPlugin } from './types';
 
 /**
  * Express plugin that automatically logs HTTP requests, responses, and errors
+ * with distributed tracing support using OpenTelemetry spans.
+ *
+ * Creates a span for each HTTP request that:
+ * - Tracks request duration and timing
+ * - Associates all logs during the request with the span
+ * - Records HTTP method, path, status code, and other metadata
+ * - Formats response logs as: "POST /api/users -> 200  1.23s"
  *
  * @example
  * ```typescript
@@ -21,6 +29,13 @@ import type { ExpressPluginConfig, LogzAIPlugin } from './types';
  *   app,
  *   skipPaths: ['/health', '/metrics'],
  *   contextInjector: (req) => ({ userId: req.user?.id })
+ * });
+ *
+ * // In your route handlers, logs will be automatically associated with the request span
+ * app.post('/api/users', (req, res) => {
+ *   logzai.info('Creating user', { email: req.body.email });
+ *   // This log will be part of the "POST /api/users" span
+ *   res.json({ success: true });
  * });
  * ```
  */
@@ -63,7 +78,7 @@ export const expressPlugin: LogzAIPlugin<ExpressPluginConfig> = (
   };
 
   /**
-   * Request/Response logging middleware
+   * Request/Response logging middleware with span tracking
    */
   const loggingMiddleware = (req: any, res: any, next: any) => {
     // Skip if path is in skipPaths
@@ -108,75 +123,119 @@ export const expressPlugin: LogzAIPlugin<ExpressPluginConfig> = (
       return attrs;
     };
 
-    // Log incoming request
-    if (logRequests) {
-      instance.info(`${req.method} ${req.path}`, {
-        ...getBaseAttributes(),
-        'log.type': 'http.request',
-      });
-    }
+    // Create a span for this HTTP request
+    const tracer = trace.getTracer('logzai-express');
+    const spanName = `${req.method} ${req.route?.path || req.path}`;
+    const span: Span = tracer.startSpan(spanName, {
+      attributes: {
+        'http.method': req.method,
+        'http.url': req.url,
+        'http.target': req.path,
+        'http.route': req.route?.path || req.path,
+        'http.host': req.hostname,
+        'http.scheme': req.protocol,
+        'http.user_agent': req.get('user-agent') || '',
+        'http.client_ip': req.ip || req.connection.remoteAddress || '',
+      },
+    });
 
-    // Capture response
-    const originalEnd = res.end;
-    let responseBody: any;
+    // Create a context with this span as active
+    const ctx = trace.setSpan(context.active(), span);
 
-    // Intercept json responses
-    res.json = function (body: any) {
-      responseBody = body;
-      return originalJson.call(this, body);
-    };
+    // Store span in request for potential use by route handlers
+    req.logzaiSpan = span;
 
-    // Intercept send responses
-    res.send = function (body: any) {
-      responseBody = body;
-      return originalSend.call(this, body);
-    };
-
-    // Log response when finished
-    res.end = function (...args: any[]) {
-      const duration = Date.now() - startTime;
-      const statusCode = res.statusCode;
-
-      if (logResponses) {
-        const attrs: Record<string, any> = {
+    // Run the rest of the middleware chain in the span context
+    context.with(ctx, () => {
+      // Log incoming request
+      if (logRequests) {
+        instance.info(`${req.method} ${req.path}`, {
           ...getBaseAttributes(),
-          'http.status_code': statusCode,
-          'http.duration_ms': duration,
-          'log.type': 'http.response',
-        };
-
-        // Add response body if enabled
-        if (logResponseBody && responseBody) {
-          attrs['http.response_body'] = typeof responseBody === 'string'
-            ? responseBody
-            : JSON.stringify(responseBody);
-        }
-
-        // Determine log level based on status code
-        const message = `${req.method} ${req.path} -> ${statusCode}`;
-
-        if (statusCode >= 500) {
-          instance.error(message, attrs);
-        } else if (statusCode >= 400) {
-          instance.warn(message, attrs);
-        } else {
-          instance.info(message, attrs);
-        }
-
-        // Log slow requests if threshold is set
-        if (slowRequestThreshold && duration > slowRequestThreshold) {
-          instance.warn(`Slow request detected: ${req.method} ${req.path}`, {
-            ...attrs,
-            'log.type': 'http.slow_request',
-            'http.threshold_ms': slowRequestThreshold,
-          });
-        }
+          'log.type': 'http.request',
+        });
       }
 
-      return originalEnd.apply(res, args);
-    };
+      // Capture response
+      const originalEnd = res.end;
+      let responseBody: any;
 
-    next();
+      // Intercept json responses
+      res.json = function (body: any) {
+        responseBody = body;
+        return originalJson.call(this, body);
+      };
+
+      // Intercept send responses
+      res.send = function (body: any) {
+        responseBody = body;
+        return originalSend.call(this, body);
+      };
+
+      // Log response when finished
+      res.end = function (...args: any[]) {
+        return context.with(ctx, () => {
+          const duration = Date.now() - startTime;
+          const statusCode = res.statusCode;
+
+          // Update span with response information
+          span.setAttributes({
+            'http.status_code': statusCode,
+            'http.duration_ms': duration,
+          });
+
+          // Set span status based on HTTP status code
+          if (statusCode >= 400) {
+            span.setStatus({ code: 2, message: `HTTP ${statusCode}` }); // ERROR
+          } else {
+            span.setStatus({ code: 1 }); // OK
+          }
+
+          if (logResponses) {
+            const attrs: Record<string, any> = {
+              ...getBaseAttributes(),
+              'http.status_code': statusCode,
+              'http.duration_ms': duration,
+              'log.type': 'http.response',
+            };
+
+            // Add response body if enabled
+            if (logResponseBody && responseBody) {
+              attrs['http.response_body'] = typeof responseBody === 'string'
+                ? responseBody
+                : JSON.stringify(responseBody);
+            }
+
+            // Determine log level and format message with timing
+            const durationSeconds = (duration / 1000).toFixed(2);
+            const message = `${req.method} ${req.path} -> ${statusCode}  ${durationSeconds}s`;
+
+            if (statusCode >= 500) {
+              instance.error(message, attrs);
+            } else if (statusCode >= 400) {
+              instance.warn(message, attrs);
+            } else {
+              instance.info(message, attrs);
+            }
+
+            // Log slow requests if threshold is set
+            if (slowRequestThreshold && duration > slowRequestThreshold) {
+              instance.warn(`Slow request detected: ${req.method} ${req.path}`, {
+                ...attrs,
+                'log.type': 'http.slow_request',
+                'http.threshold_ms': slowRequestThreshold,
+              });
+            }
+          }
+
+          // End the span
+          span.end();
+
+          return originalEnd.apply(res, args);
+        });
+      };
+
+      next();
+    });
   };
 
   /**
@@ -208,6 +267,12 @@ export const expressPlugin: LogzAIPlugin<ExpressPluginConfig> = (
     // Inject custom context
     if (contextInjector) {
       Object.assign(attrs, contextInjector(req));
+    }
+
+    // Record exception in span if available
+    if (req.logzaiSpan) {
+      req.logzaiSpan.recordException(err);
+      req.logzaiSpan.setStatus({ code: 2, message: err.message }); // ERROR
     }
 
     // Log the exception

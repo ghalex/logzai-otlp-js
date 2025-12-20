@@ -179,11 +179,12 @@ logzai.init({ /* ... */ });
 logzai.plugin('express', expressPlugin, { app });
 ```
 
-This will automatically log:
-- `GET /users -> 200` (info level for 2xx/3xx)
-- `POST /login -> 400` (warn level for 4xx)
-- `GET /data -> 500` (error level for 5xx)
-- All unhandled errors with stack traces
+This will automatically:
+- Create a span for each HTTP request with timing information
+- Log requests and responses with duration: `POST /ingest/otel/logs -> 200  2.35s`
+- Associate all logs that happen during the request with the request span
+- Use appropriate log levels: info (2xx/3xx), warn (4xx), error (5xx)
+- Capture all unhandled errors with stack traces
 
 #### Advanced Configuration
 
@@ -220,6 +221,31 @@ logzai.plugin('express', expressPlugin, {
   logResponseBody: false,
 });
 ```
+
+#### Distributed Tracing
+
+The Express plugin automatically creates OpenTelemetry spans for each HTTP request. All logs emitted during the request (including logs from your route handlers) are automatically associated with the request span, making it easy to trace the full lifecycle of a request.
+
+```typescript
+app.post('/api/users', async (req, res) => {
+  // These logs will be automatically associated with the "POST /api/users" span
+  logzai.info('Validating user data', { email: req.body.email });
+
+  const user = await createUser(req.body);
+  logzai.info('User created successfully', { userId: user.id });
+
+  res.json({ success: true, userId: user.id });
+  // Span ends automatically when response is sent
+  // Log message: "POST /api/users -> 200  0.52s"
+});
+```
+
+The span includes:
+- HTTP method, path, and route
+- Status code and response time
+- Client IP and user agent
+- Query parameters (if present)
+- Custom attributes from `contextInjector`
 
 #### Configuration Options
 
